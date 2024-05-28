@@ -10,7 +10,7 @@ def main():
     data = connection.recv(1024)
     print(data.decode())
     response = "+PONG\r\n"
-    connection.sendall(responseencode())
+    connection.sendall(response.encode())
 
 
 if __name__ == "__main__":
