@@ -7,7 +7,7 @@ set_string = dict()
 def parse_request(request):
     requests = list(request.decode().split())
     print(request.decode())
-    command = requests[2] #The command used
+    command = requests[2].lower() #The command used
     try:
         arg1 = requests[4] #First argument passed to command
     except:
@@ -16,40 +16,39 @@ def parse_request(request):
     print(f"Received command: {command}")
     
     # Handle PING
-    if command.lower() == 'ping':
-        return '+PONG\r\n'
+    if command == 'ping':
+        return b'+PONG\r\n'
     
     # Handle ECHO
-    elif command.lower() == 'echo':
-        return '+' + arg1 + '\r\n'
+    elif command == 'echo':
+        return b'+' + arg1.encode() + b'\r\n'
     
     # Handle SET
-    elif command.lower() == 'set':
-        if 'px' in requests:
-            print(f"Set expiry: {requests[10]}")
-            r =set_command(arg1, requests[6], expiry=requests[10])
-            pid = os.fork()
-            if pid == 0:
-                time.sleep(int(requests[10]))
-                set_string[arg1] = None
-                os._exit(0)
-                
-        
-        return set_command(arg1, requests[6])
+    elif command == 'set':
+        key = arg1
+        value = requests[6]
+        if 'px' in requests or 'PX' in requests:
+            expiry_time = int(requests[10])
+            print(f"Set expiry: {expiry_time}")
+            return set_command(key, (value, time.time() + expiry_time / 1000))
+        else:
+            return set_command(key, (value, None))
     
     #Handle GET
-    elif command.lower() == 'get':
+    elif command == 'get':
         return get_command(arg1)
     
-def set_command(arg1, arg2, expiry=0):
-    set_string[arg1] = arg2
+def set_command(key, value):
+    set_string[key] = value
     print(set_string)
-    return '+OK\r\n'
+    return b'+OK\r\n'
 
 def get_command(arg1):
-    if set_string.get(arg1) != None:
-        return '+' + set_string[arg1] + '\r\n'
-    else: return '-1\r\n'
+    value, expiry = set_string.get(arg1, (None, None))
+    if value == None or (expiry and time.time() > expiry):
+        return b"$-1\r\n"
+    return b'+' + value.encode() + b'\r\n'
+    
 
 def handle_request(connection):
     try:
@@ -59,7 +58,7 @@ def handle_request(connection):
                 # Break the loop if the client disconnects
                 break
             response = parse_request(request)
-            connection.sendall(response.encode())
+            connection.sendall(response)
     except Exception as e:
         print(f"Error handling: {e}")
     finally:
