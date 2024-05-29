@@ -27,13 +27,13 @@ def parse_request(request):
     elif command.lower() == 'set':
         if 'px' in requests:
             print(f"Set expiry: {requests[10]}")
-        return set_command(arg1)
+        return set_command(arg1, requests[6])
     
     #Handle GET
     elif command.lower() == 'get':
         return get_command(arg1)
     
-def set_command(arg1, expiry=0):
+def set_command(arg1, arg2, expiry=0):
     set_string[arg1] = requests[6]
     print(set_string)
     return '+OK\r\n'
