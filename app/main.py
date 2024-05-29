@@ -31,11 +31,12 @@ def parse_request(request):
     
     #Handle GET
     elif command.lower() == 'get':
-        print(set_string.get(arg1))
-        if set_string.get(arg1) != None:
-            print(set_string[arg1])
-            return '+' + set_string[arg1] + '\r\n'
-        else: return '-1\r\n'
+        return get_command()
+
+def get_command():
+    if set_string.get(arg1) != None:
+        return '+' + set_string[arg1] + '\r\n'
+    else: return '-1\r\n'
 
 def handle_request(connection):
     try:
