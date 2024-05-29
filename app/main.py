@@ -9,7 +9,9 @@ def handle_request(connection):
             if not request:
                 # Break the loop if the client disconnects
                 break
+            requests = [request]
             print(request.decode())
+            print(requests)
             response = "+PONG\r\n"
             connection.sendall(response.encode())
     except Exception as e:
