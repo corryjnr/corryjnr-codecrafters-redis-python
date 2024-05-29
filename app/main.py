@@ -27,6 +27,13 @@ def parse_request(request):
     elif command.lower() == 'set':
         if 'px' in requests:
             print(f"Set expiry: {requests[10]}")
+            r =set_command(arg1, requests[6], expiry=requests[10])
+            pid = os.fork()
+            if pid == 0:
+                time.sleep(int(requests[10]))
+                set_string[arg1] = None
+                os._exit(0)
+                
         
         return set_command(arg1, requests[6])
     
