@@ -34,7 +34,7 @@ def parse_request(request):
         return get_command(arg1)
     
 def set_command(arg1, arg2, expiry=0):
-    set_string[arg1] = requests[6]
+    set_string[arg1] = arg2
     print(set_string)
     return '+OK\r\n'
 
