@@ -2,6 +2,16 @@ import socket
 import os
 import time
 
+def parse_request(request):
+    requests = list(request.decode().split())
+    print(request.decode())
+    print(f" Received command: {requests[2]}")
+    
+    if requests[2].lower() == 'ping':
+        return '+PONG\r\n'
+    elif requests[2].lower() == 'echo':
+        return '+' + requests[4] + '\r\n'
+
 def handle_request(connection):
     try:
         while True:
@@ -9,10 +19,7 @@ def handle_request(connection):
             if not request:
                 # Break the loop if the client disconnects
                 break
-            requests = [request]
-            print(request.decode())
-            print(requests)
-            response = "+PONG\r\n"
+            response = parse_request(request)
             connection.sendall(response.encode())
     except Exception as e:
         print(f"Error handling: {e}")
