@@ -25,7 +25,7 @@ def parse_request(request):
     
     # Handle SET
     elif command.lower() == 'set':
-        set_string[arg1] = requests[-1]
+        set_string[arg1] = requests[6]
         print(set_string)
         return '+OK\r\n'
     
