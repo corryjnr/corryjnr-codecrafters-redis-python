@@ -2,15 +2,40 @@ import socket
 import os
 import time
 
+set_string = dict()
+
 def parse_request(request):
     requests = list(request.decode().split())
     print(request.decode())
-    print(f" Received command: {requests[2]}")
+    command = requests[2]
+    try:
+        arg1 = requests[4]
+    except:
+        arg1 = None
+
+    print(f"Received command: {command}")
     
-    if requests[2].lower() == 'ping':
+    # Handle PING
+    if command.lower() == 'ping':
         return '+PONG\r\n'
-    elif requests[2].lower() == 'echo':
-        return '+' + requests[4] + '\r\n'
+    
+    # Handle ECHO
+    elif command.lower() == 'echo':
+        return '+' + arg1 + '\r\n'
+    
+    # Handle SET
+    elif command.lower() == 'set':
+        set_string[arg1] = requests[-1]
+        print(set_string)
+        return '+OK\r\n'
+    
+    #Handle GET
+    elif command.lower() == 'get':
+        print(set_string.get(arg1))
+        if set_string.get(arg1) != None:
+            print(set_string[arg1])
+            return '+' + set_string[arg1] + '\r\n'
+        else: return '-1\r\n'
 
 def handle_request(connection):
     try:
