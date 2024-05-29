@@ -7,9 +7,9 @@ set_string = dict()
 def parse_request(request):
     requests = list(request.decode().split())
     print(request.decode())
-    command = requests[2]
+    command = requests[2] #The command used
     try:
-        arg1 = requests[4]
+        arg1 = requests[4] #First argument passed to command
     except:
         arg1 = None
 
@@ -25,13 +25,18 @@ def parse_request(request):
     
     # Handle SET
     elif command.lower() == 'set':
-        set_string[arg1] = requests[6]
-        print(set_string)
-        return '+OK\r\n'
+        if 'px' in requests:
+            print(f"Set expiry: {requests[10]}")
+        return set_command(arg1)
     
     #Handle GET
     elif command.lower() == 'get':
         return get_command(arg1)
+    
+def set_command(arg1, expiry):
+    set_string[arg1] = requests[6]
+    print(set_string)
+    return '+OK\r\n'
 
 def get_command(arg1):
     if set_string.get(arg1) != None:
