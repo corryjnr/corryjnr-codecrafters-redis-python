@@ -31,9 +31,9 @@ def parse_request(request):
     
     #Handle GET
     elif command.lower() == 'get':
-        return get_command()
+        return get_command(arg1)
 
-def get_command():
+def get_command(arg1):
     if set_string.get(arg1) != None:
         return '+' + set_string[arg1] + '\r\n'
     else: return '-1\r\n'
