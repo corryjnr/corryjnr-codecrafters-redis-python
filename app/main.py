@@ -46,7 +46,11 @@ def info_command(argument):
         role = server_role
         print(role)
         if role == 'master':
-            return b'+role:master\r\n'
+            rep_id = master_replid
+            rep_offset = master_repl_offset
+            response = b'+role:master\n' + b"master_replid:" + rep_id.encode() + b'\n' + b"master_repl_offset:" + str(rep_offset).encode() + b'\r\n'
+            print(response)
+            return response
         elif role == 'slave':
             return b'+role:slave\r\n'
     
@@ -81,6 +85,11 @@ def main(host, port, role="master"):
     role_ = role
     server_port = port
     server_role = role_
+    if server_role == "master":
+        global master_replid
+        global master_repl_offset
+        master_replid = "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb"
+        master_repl_offset = 0
     
     # You can use print statements as follows for debugging, they'll be visible when running tests.
     print("Logs from your program will appear here!")
