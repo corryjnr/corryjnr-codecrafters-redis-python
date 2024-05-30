@@ -9,7 +9,7 @@ set_string = dict()
 def parse_request(request):
     requests = list(request.decode().split())
     print(request.decode())
-    command = requests[2].lower() #The command used
+    command = requests[2].upper() #The command used
     try:
         arg1 = requests[4] #First argument passed to command
     except:
@@ -18,15 +18,13 @@ def parse_request(request):
     print(f"Received command: {command}")
     
     # Handle PING
-    if command == 'ping':
+    if command == 'PING':
         return b'+PONG\r\n'
-    
     # Handle ECHO
-    elif command == 'echo':
+    elif command == 'ECHO':
         return b'+' + arg1.encode() + b'\r\n'
-    
     # Handle SET
-    elif command == 'set':
+    elif command == 'SET':
         key = arg1
         value = requests[6]
         if 'px' in requests or 'PX' in requests:
@@ -35,10 +33,22 @@ def parse_request(request):
             return set_command(key, (value, time.time() + expiry_time / 1000))
         else:
             return set_command(key, (value, None))
-    
-    #Handle GET
-    elif command == 'get':
+    # Handle GET
+    elif command == 'GET':
         return get_command(arg1)
+    # Handle INFO
+    elif command == 'INFO':
+        argument = requests[4]
+        return info_command(argument)
+
+def info_command(argument):
+    if argument == "replication":
+        role = server_role
+        print(role)
+        if role == 'master':
+            return b'+role:master\r\n'
+        elif role == 'slave':
+            return b'+role:slave\r\n'
     
 def set_command(key, value):
     set_string[key] = value
@@ -66,10 +76,15 @@ def handle_request(connection):
     finally:
         connection.close()
     
-def main(port=6379):
+def main(port=6379, role="master"):
+    global server_role
+    role_ = role
+    server_port = port
+    server_role = role_
+    
     # You can use print statements as follows for debugging, they'll be visible when running tests.
     print("Logs from your program will appear here!")
-
+    
     server_socket = socket.create_server(("localhost", port), reuse_port=True)
     
     while True:
@@ -89,10 +104,12 @@ if __name__ == "__main__":
     args = parser.parse_args()
     if args.port != None:
         port = args.port
-        main(port)
+        print("Connecting to port {port} ...")
+        main(port, role="slave")
     #args = []
     #args = sys.argv[:]
     #if '--port' in sys.argv:
     #    print(args)
     #    main(int(sys.argv[2]))
+    print("Connecting to port 6379 ...")
     main()
