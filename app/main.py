@@ -20,6 +20,10 @@ def parse_request(request):
     # Handle PING
     if command == 'PING':
         return b'+PONG\r\n'
+    
+    if command == 'REPLCONF':
+        return b'+OK\r\n'
+    
     # Handle ECHO
     elif command == 'ECHO':
         return b'+' + arg1.encode() + b'\r\n'
