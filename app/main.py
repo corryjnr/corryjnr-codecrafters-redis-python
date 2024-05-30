@@ -1,6 +1,8 @@
 import socket
 import os
 import time
+import sys
+import argparse
 
 set_string = dict()
 
@@ -64,11 +66,11 @@ def handle_request(connection):
     finally:
         connection.close()
     
-def main():
+def main(port=6379):
     # You can use print statements as follows for debugging, they'll be visible when running tests.
     print("Logs from your program will appear here!")
 
-    server_socket = socket.create_server(("localhost", 6379), reuse_port=True)
+    server_socket = socket.create_server(("localhost", port), reuse_port=True)
     
     while True:
         connection, address = server_socket.accept() # wait for client
@@ -82,4 +84,15 @@ def main():
             connection.close() # parent closes its copy of the connection
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--port", help="specify port to connect", type=int)
+    args = parser.parse_args()
+    if args.port != None:
+        port = args.port
+        main(port)
+    #args = []
+    #args = sys.argv[:]
+    #if '--port' in sys.argv:
+    #    print(args)
+    #    main(int(sys.argv[2]))
     main()
