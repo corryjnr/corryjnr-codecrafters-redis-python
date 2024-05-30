@@ -24,6 +24,13 @@ def parse_request(request):
     if command == 'REPLCONF':
         return b'+OK\r\n'
     
+    if command == 'PSYNC':
+        rep_id = master_replid
+        rep_offset = master_repl_offset
+        response = b'+FULLRESYNC' + b" " + rep_id.encode() + b" " + str(rep_offset).encode() + b'\r\n'
+        print(response)
+        return response
+    
     # Handle ECHO
     elif command == 'ECHO':
         return b'+' + arg1.encode() + b'\r\n'
