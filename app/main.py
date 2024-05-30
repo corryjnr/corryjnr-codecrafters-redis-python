@@ -86,6 +86,7 @@ def handshake(s_port, host="localhost", port=6379):
     response1 = "*1\r\n$4\r\nping\r\n"
     response2 = "*3\r\n$8\r\nREPLCONF\r\n$14\r\nlistening-port\r\n$4\r\n" + str(s_port) + "\r\n"
     response3 = "*3\r\n$8\r\nREPLCONF\r\n$4\r\ncapa\r\n$6\r\npsync2\r\n"
+    response4 = "*3\r\n$5\r\nPSYNC\r\n$1\r\n?\r\n$2\r\n-1\r\n"
     s = socket.create_connection((host, port))
     s.send(response1.encode())
     request1 = s.recv(1024).decode()
@@ -102,7 +103,7 @@ def handshake(s_port, host="localhost", port=6379):
     request3 = s.recv(1024).decode()
     print(response2)
     if "OK" in request3:
-        s.close()
+        s.send(response4.encode())
     
 def main(host, port, role="master", m_host=None, m_port=None):
     global server_role
