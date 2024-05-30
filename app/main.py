@@ -76,7 +76,7 @@ def handle_request(connection):
     finally:
         connection.close()
     
-def main(port=6379, role="master"):
+def main(host, port, role="master"):
     global server_role
     role_ = role
     server_port = port
@@ -85,7 +85,7 @@ def main(port=6379, role="master"):
     # You can use print statements as follows for debugging, they'll be visible when running tests.
     print("Logs from your program will appear here!")
     
-    server_socket = socket.create_server(("localhost", port), reuse_port=True)
+    server_socket = socket.create_server((host, port), reuse_port=True)
     
     while True:
         connection, address = server_socket.accept() # wait for client
@@ -100,16 +100,19 @@ def main(port=6379, role="master"):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--port", help="specify port to connect", type=int)
+    parser.add_argument("--port", help="specify port to connect", type=int, nargs=1)
+    parser.add_argument("--replicaof", help="specify master", type=str)
     args = parser.parse_args()
     if args.port != None:
         port = args.port
-        print("Connecting to port {port} ...")
-        main(port, role="slave")
-    #args = []
-    #args = sys.argv[:]
-    #if '--port' in sys.argv:
-    #    print(args)
-    #    main(int(sys.argv[2]))
-    print("Connecting to port 6379 ...")
-    main()
+        if args.replicaof != None:
+            master_host, master_port = args.replicaof.split(" ")
+            main(host="localhost", port=args.port, role="slave")
+            print("Connecting to port {port} as 'slave")
+        else:
+            print("Connecting to port {port} ...")
+            main(port=args.port, host="localhost")
+        
+    else:
+        print("Connecting to port 6379 ...")
+        main(host="localhost", port=6379)
