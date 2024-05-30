@@ -100,17 +100,18 @@ def main(host, port, role="master"):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--port", help="specify port to connect", type=int, nargs=1)
+    parser.add_argument("--port", help="specify port to connect", type=int)
     parser.add_argument("--replicaof", help="specify master", type=str)
     args = parser.parse_args()
     if args.port != None:
         port = args.port
         if args.replicaof != None:
+            port = args.port
             arg_values = args.replicaof.split()
             master_host = arg_values[0]
             master_port = arg_values[1]
+            print(f"Connecting to port {port} as 'slave'")
             main(host="localhost", port=port, role="slave")
-            print("Connecting to port {port} as 'slave")
         else:
             print("Connecting to port {port} ...")
             main(port=args.port, host="localhost")
