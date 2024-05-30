@@ -65,7 +65,7 @@ def get_command(arg1):
         return b"$-1\r\n"
     return b'+' + value.encode() + b'\r\n'
     
-
+# Handle client requests
 def handle_request(connection):
     try:
         while True:
@@ -79,21 +79,33 @@ def handle_request(connection):
         print(f"Error handling: {e}")
     finally:
         connection.close()
+
+# Initiate connection with master
+def handshake(host="localhost", port=6379):
+    print(f"Sending handshake to {host}:{port}")
+    response = "*1\r\n$4\r\nping\r\n"
+    with socket.create_connection((host, port)) as s:
+        s.send(response.encode())
     
-def main(host, port, role="master"):
+def main(host, port, role="master", m_host=None, m_port=None):
     global server_role
     role_ = role
     server_port = port
     server_role = role_
+    
     if server_role == "master":
         global master_replid
         global master_repl_offset
         master_replid = "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb"
         master_repl_offset = 0
-    
+        
+    if server_role == "slave":
+        handshake(m_host, m_port)
+        
     # You can use print statements as follows for debugging, they'll be visible when running tests.
     print("Logs from your program will appear here!")
     
+    # Create server socket
     server_socket = socket.create_server((host, port), reuse_port=True)
     
     while True:
@@ -120,7 +132,7 @@ if __name__ == "__main__":
             master_host = arg_values[0]
             master_port = arg_values[1]
             print(f"Connecting to port {port} as 'slave'")
-            main(host="localhost", port=port, role="slave")
+            main(host="localhost", port=port, role="slave", m_host=master_host, m_port=int(master_port))
         else:
             print("Connecting to port {port} ...")
             main(port=args.port, host="localhost")
