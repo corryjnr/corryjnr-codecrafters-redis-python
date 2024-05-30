@@ -109,7 +109,7 @@ if __name__ == "__main__":
             arg_values = args.replicaof.split()
             master_host = arg_values[0]
             master_port = arg_values[1]
-            main(host="localhost", port=args.port, role="slave")
+            main(host="localhost", port=port, role="slave")
             print("Connecting to port {port} as 'slave")
         else:
             print("Connecting to port {port} ...")
