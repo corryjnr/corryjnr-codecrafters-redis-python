@@ -81,11 +81,28 @@ def handle_request(connection):
         connection.close()
 
 # Initiate connection with master
-def handshake(host="localhost", port=6379):
+def handshake(s_port, host="localhost", port=6379):
     print(f"Sending handshake to {host}:{port}")
-    response = "*1\r\n$4\r\nping\r\n"
-    with socket.create_connection((host, port)) as s:
-        s.send(response.encode())
+    response1 = "*1\r\n$4\r\nping\r\n"
+    response2 = "*3\r\n$8\r\nREPLCONF\r\n$14\r\nlistening-port\r\n$4\r\n" + str(s_port) + "\r\n"
+    response3 = "*3\r\n$8\r\nREPLCONF\r\n$4\r\ncapa\r\n$6\r\npsync2\r\n"
+    s = socket.create_connection((host, port))
+    s.send(response1.encode())
+    request1 = s.recv(1024).decode()
+    print(request1)
+    if "PONG" in request1:
+        print("Handshake successful")
+        print(response2)
+        s.send(response2.encode())
+    request2 = s.recv(1024).decode()
+    print(request2)
+    if "OK" in request2:
+        print(response3)
+        s.send(response3.encode())
+    request3 = s.recv(1024).decode()
+    print(response2)
+    if "OK" in request3:
+        s.close()
     
 def main(host, port, role="master", m_host=None, m_port=None):
     global server_role
@@ -100,7 +117,7 @@ def main(host, port, role="master", m_host=None, m_port=None):
         master_repl_offset = 0
         
     if server_role == "slave":
-        handshake(m_host, m_port)
+        handshake(s_port=server_port, host=m_host, port=m_port)
         
     # You can use print statements as follows for debugging, they'll be visible when running tests.
     print("Logs from your program will appear here!")
