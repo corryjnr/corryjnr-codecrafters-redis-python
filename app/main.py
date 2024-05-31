@@ -98,6 +98,7 @@ def handle_request(connection):
                 rdb_file_response = f"${len(rdb)}\r\n"
                 connection.send(rdb_file_response.encode())
                 connection.send(rdb)
+                print(f"Sent the empty rdb file to the client")
     except Exception as e:
         print(f"Error handling: {e}")
     finally:
