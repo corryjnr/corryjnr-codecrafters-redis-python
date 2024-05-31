@@ -28,8 +28,12 @@ def parse_request(request):
         rep_id = master_replid
         rep_offset = master_repl_offset
         response = b'+FULLRESYNC' + b" " + rep_id.encode() + b" " + str(rep_offset).encode() + b'\r\n'
+        if "?" in requests:
+            pass
         print(response)
         return response
+    if command == 'FULLRESYNC':
+        pass
     
     # Handle ECHO
     elif command == 'ECHO':
@@ -86,6 +90,14 @@ def handle_request(connection):
                 break
             response = parse_request(request)
             connection.sendall(response)
+            if "FULLRESYNC" in response.decode():
+                print(f"The response in handle_request: {response.decode()}" )
+                empty_rdb_hex = "524544495330303131fa0972656469732d76657205372e322e30fa0a72656469732d62697473c040fa056374696d65c26d08bc65fa08757365642d6d656dc2b0c41000fa08616f662d62617365c000fff06e3bfec0ff5aa2"
+                rdb = bytes.fromhex(empty_rdb_hex)
+                #empty_rdb = empty_rdb.encode()
+                rdb_file_response = f"${len(rdb)}\r\n"
+                connection.send(rdb_file_response.encode())
+                connection.send(rdb)
     except Exception as e:
         print(f"Error handling: {e}")
     finally:
