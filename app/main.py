@@ -3,55 +3,61 @@ import os
 import time
 import sys
 import argparse
+from threading import Thread
+strings_store = dict()
+to_propagate = dict()
 
-set_string = dict()
-
-def parse_request(request):
+fullresync_count = 0
+    
+def parse_request(request, connection):
     requests = list(request.decode().split())
     print(request.decode())
     command = requests[2].upper() #The command used
+    arguments = requests[1:]
     try:
         arg1 = requests[4] #First argument passed to command
     except:
         arg1 = None
-
+        
+    global replicas
+    # Handle received Commands
     print(f"Received command: {command}")
-    
-    # Handle PING
     if command == 'PING':
         return b'+PONG\r\n'
-    
-    if command == 'REPLCONF':
+    elif command == 'REPLCONF':
         return b'+OK\r\n'
-    
-    if command == 'PSYNC':
+    elif command == 'PSYNC':
+        # Response by master
+        replicas.append(connection)
+        print(replicas)
         rep_id = master_replid
         rep_offset = master_repl_offset
         response = b'+FULLRESYNC' + b" " + rep_id.encode() + b" " + str(rep_offset).encode() + b'\r\n'
-        if "?" in requests:
-            pass
-        print(response)
-        return response
-    if command == 'FULLRESYNC':
-        pass
-    
-    # Handle ECHO
+        connection.send(response)
+        fullresync_command(connection=connection)
+        return b''
     elif command == 'ECHO':
         return b'+' + arg1.encode() + b'\r\n'
-    # Handle SET
     elif command == 'SET':
         key = arg1
         value = requests[6]
+        r = f"*3\r\n$3\r\nSET\r\n${len(key)}\r\n{key}\r\n${len(value)}\r\n{value}\r\n"
         if 'px' in requests or 'PX' in requests:
             expiry_time = int(requests[10])
             print(f"Set expiry: {expiry_time}")
             return set_command(key, (value, time.time() + expiry_time / 1000))
         else:
+            for replica in replicas:
+                try:
+                    replica.send(r.encode())
+                    print("sent")
+                except:
+                    print("send failed")
+                else:
+                    to_propagate[key] = value
             return set_command(key, (value, None))
-    # Handle GET
     elif command == 'GET':
         return get_command(arg1)
-    # Handle INFO
     elif command == 'INFO':
         argument = requests[4]
         return info_command(argument)
@@ -70,16 +76,43 @@ def info_command(argument):
             return b'+role:slave\r\n'
     
 def set_command(key, value):
-    set_string[key] = value
-    print(set_string)
+    strings_store[key] = value
+    print(strings_store)
     return b'+OK\r\n'
 
 def get_command(arg1):
-    value, expiry = set_string.get(arg1, (None, None))
+    value, expiry = strings_store.get(arg1, (None, None))
     if value == None or (expiry and time.time() > expiry):
         return b"$-1\r\n"
     return b'+' + value.encode() + b'\r\n'
+
+def fullresync_command(connection):
+    empty_rdb_hex = "524544495330303131fa0972656469732d76657205372e322e30fa0a72656469732d62697473c040fa056374696d65c26d08bc65fa08757365642d6d656dc2b0c41000fa08616f662d62617365c000fff06e3bfec0ff5aa2"
+    rdb = bytes.fromhex(empty_rdb_hex)
+    #empty_rdb = empty_rdb.encode()
+    rdb_file_response = f"${len(rdb)}\r\n"
+    connection.send(rdb_file_response.encode())
+    try:
+        connection.send(rdb)
+    except:
+        print("Error sending the empty rdb file to the client")
+    else:
+        print("Sent the empty rdb file to the client")
+
     
+def replication(connection):
+    print("Replication started")
+    print(to_propagate)
+    for key, value in to_propagate.items():
+        print(f"Key:{key} Value:{value}")
+        r = f"*3\r\n$3\r\nSET\r\n${len(key)}\r\n{key}\r\n${len(value)}\r\n{value}\r\n"
+        try:
+            print(r)
+            connection.send(r.encode())
+            print("sent")
+        except:
+            print("send failed")
+
 # Handle client requests
 def handle_request(connection):
     try:
@@ -88,17 +121,8 @@ def handle_request(connection):
             if not request:
                 # Break the loop if the client disconnects
                 break
-            response = parse_request(request)
+            response = parse_request(request, connection)
             connection.sendall(response)
-            if "FULLRESYNC" in response.decode():
-                print(f"The response in handle_request: {response.decode()}" )
-                empty_rdb_hex = "524544495330303131fa0972656469732d76657205372e322e30fa0a72656469732d62697473c040fa056374696d65c26d08bc65fa08757365642d6d656dc2b0c41000fa08616f662d62617365c000fff06e3bfec0ff5aa2"
-                rdb = bytes.fromhex(empty_rdb_hex)
-                #empty_rdb = empty_rdb.encode()
-                rdb_file_response = f"${len(rdb)}\r\n"
-                connection.send(rdb_file_response.encode())
-                connection.send(rdb)
-                print(f"Sent the empty rdb file to the client")
     except Exception as e:
         print(f"Error handling: {e}")
     finally:
@@ -129,6 +153,7 @@ def handshake(s_port, host="localhost", port=6379):
     if "OK" in request3:
         s.send(response4.encode())
     
+
 def main(host, port, role="master", m_host=None, m_port=None):
     global server_role
     role_ = role
@@ -138,8 +163,10 @@ def main(host, port, role="master", m_host=None, m_port=None):
     if server_role == "master":
         global master_replid
         global master_repl_offset
+        global replicas
         master_replid = "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb"
         master_repl_offset = 0
+        replicas = list()
         
     if server_role == "slave":
         handshake(s_port=server_port, host=m_host, port=m_port)
@@ -150,18 +177,14 @@ def main(host, port, role="master", m_host=None, m_port=None):
     # Create server socket
     server_socket = socket.create_server((host, port), reuse_port=True)
     
+    #Infinite loop, server waiting for connections and accepting
     while True:
         connection, address = server_socket.accept() # wait for client
-        pid = os.fork()
-        if pid == 0: #child
-            server_socket.close() #close child copy
-            handle_request(connection)
-            print(f"Connection from {address} closed")
-            os._exit(0)# child exits here
-        else:
-            connection.close() # parent closes its copy of the connection
+        client_thread = Thread(target=handle_request, args=(connection,))
+        client_thread.start()
 
 if __name__ == "__main__":
+    # Handle cli arguments
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", help="specify port to connect", type=int)
     parser.add_argument("--replicaof", help="specify master", type=str)
@@ -169,7 +192,6 @@ if __name__ == "__main__":
     if args.port != None:
         port = args.port
         if args.replicaof != None:
-            port = args.port
             arg_values = args.replicaof.split()
             master_host = arg_values[0]
             master_port = arg_values[1]
