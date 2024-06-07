@@ -6,7 +6,7 @@ class Parser():
         try:
             self.requests_list = list(request.decode().split())
         except Exception as e:
-            pass
+            print(f"Error: {e}")
         else:
             self.request_type = self.requests_list[0]
 
