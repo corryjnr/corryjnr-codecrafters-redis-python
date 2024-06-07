@@ -160,11 +160,24 @@ class RedisServer:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", help="Specify port to connect", type=int, default=6379)
-    parser.add_argument("--role", help="Specify server role: master or slave", type=str, default="master")
-    parser.add_argument("--master_host", help="Specify master host for replication", type=str)
-    parser.add_argument("--master_port", help="Specify master port for replication", type=int)
+    parser.add_argument("--replicaof", help="specify master", type=str)
     args = parser.parse_args()
-
+    if args.port != None:
+        port = args.port
+        if args.replicaof != None:
+            arg_values = args.replicaof.split()
+            masters_host = arg_values[0]
+            master_port = arg_values[1]
+            print(f"Connecting to port {port} as 'slave'")
+            main(host="localhost", port=port, role="slave", m_host=master_host, m_port=int(master_port))
+        else:
+            print("Connecting to port {port} ...")
+            main(port=args.port, host="localhost")
+        
+    else:
+        print("Connecting to port 6379 ...")
+        main(host="localhost", port=6379)
+        
     server = RedisServer(
         host="localhost", 
         port=args.port, 

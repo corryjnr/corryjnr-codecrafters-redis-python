@@ -4,102 +4,145 @@ import time
 import sys
 import argparse
 from threading import Thread
+from . import parser as ps
+import logging
+logging.basicConfig(
+    format="%(asctime)s %(levelname)s:%(name)s: %(message)s",
+    level=logging.DEBUG,
+    datefmt="%H:%M:%S",
+    stream=sys.stderr,
+)
+logger = logging.getLogger("main")
+logging.getLogger("chardet.charsetprober").disabled = True
+
 strings_store = dict()
 to_propagate = dict()
 
 fullresync_count = 0
-    
+
+
 def parse_request(request, connection):
-    requests = list(request.decode().split())
-    print(request.decode())
-    command = requests[2].upper() #The command used
-    arguments = requests[1:]
-    try:
-        arg1 = requests[4] #First argument passed to command
-    except:
-        arg1 = None
-        
+    parsed_requests = []
+    if request:
+        parser = ps.Parser(request)
+        if "*" in parser.request_type:
+            parsed_requests = parser.bulk_array()
+        elif "$" in parser.request_type:
+            parsed_requests = parser.bulk_string()
+
     global replicas
-    # Handle received Commands
-    print(f"Received command: {command}")
-    if command == 'PING':
-        return b'+PONG\r\n'
-    elif command == 'REPLCONF':
-        return b'+OK\r\n'
-    elif command == 'PSYNC':
-        # Response by master
-        replicas.append(connection)
-        print(replicas)
-        rep_id = master_replid
-        rep_offset = master_repl_offset
-        response = b'+FULLRESYNC' + b" " + rep_id.encode() + b" " + str(rep_offset).encode() + b'\r\n'
-        connection.send(response)
-        fullresync_command(connection=connection)
-        return b''
-    elif command == 'ECHO':
-        return b'+' + arg1.encode() + b'\r\n'
-    elif command == 'SET':
-        key = arg1
-        value = requests[6]
-        r = f"*3\r\n$3\r\nSET\r\n${len(key)}\r\n{key}\r\n${len(value)}\r\n{value}\r\n"
-        if 'px' in requests or 'PX' in requests:
-            expiry_time = int(requests[10])
-            print(f"Set expiry: {expiry_time}")
-            return set_command(key, (value, time.time() + expiry_time / 1000))
-        else:
-            for replica in replicas:
-                try:
-                    replica.send(r.encode())
-                    print("sent")
-                except:
-                    print("send failed")
-                else:
-                    to_propagate[key] = value
-            return set_command(key, (value, None))
-    elif command == 'GET':
-        return get_command(arg1)
-    elif command == 'INFO':
-        argument = requests[4]
-        return info_command(argument)
+    for parsed_request in parsed_requests:
+        # print(f"Parsed request: {parsed_request}")
+        command = parsed_request[0]
+        info = ' '.join(parsed_request)
+        # print(f"Request: {' '.join(parsed_request)}")
+        logger.info("Received request: %s", info)
+        arg1 = parsed_request[1] if len(parsed_request) >= 2 else None
+        arg2 = parsed_request[2] if len(parsed_request) >= 3 else None
+        arg3 = parsed_request[3] if len(parsed_request) >= 4 else None
+        arg4 = parsed_request[4] if len(parsed_request) >= 5 else None
+        # print(f"{command}: {arg1}, {arg2}")
+
+        # Handle received Commands
+        if command == 'PING':
+            response = b'+PONG\r\n'
+            connection.sendall(response)
+        if command == 'REPLCONF':
+            response = b'+OK\r\n'
+            connection.sendall(response)
+        if command == 'PSYNC':
+            # Response by master
+            replicas.append(connection)
+            print(replicas)
+            rep_id = master_replid
+            rep_offset = master_repl_offset
+            response = b'+FULLRESYNC' + b" " + rep_id.encode() + b" " + \
+                str(rep_offset).encode() + b'\r\n'
+            connection.send(response)
+            fullresync_command(connection=connection)
+            print("Handshake successful")
+            # return b''
+        if command == 'ECHO':
+            response = b'+' + arg1.encode() + b'\r\n'
+            connection.sendall(response)
+        if command == 'SET':
+            key = arg1
+            value = arg2
+            r = f"*3\r\n$3\r\nSET\r\n${len(key)}\r\n{key}\r\n${len(value)}\r\n{value}\r\n"
+            # print(r.encode())
+            if 'px' in parsed_request or 'PX' in parsed_request:
+                expiry_time = int(arg4)
+                print(f"Set expiry: {expiry_time}")
+                s = set_command(key, (value, time.time() + expiry_time / 1000))
+                if s != None:
+                    connection.sendall(s)
+            else:
+                for replica in replicas:
+                    try:
+                        replica.send(r.encode())
+                    except:
+                        print("send failed")
+                        to_propagate[key] = value
+                s = set_command(key, (value, None))
+                if s != None:
+                    connection.sendall(s)
+        if command == 'GET':
+            g = get_command(arg1)
+            connection.sendall(g)
+        if command == 'INFO':
+            argument = arg1
+            response = info_command(argument)
+            connection.sendall(response)
+
 
 def info_command(argument):
     if argument == "replication":
+        global server_role
         role = server_role
         print(role)
         if role == 'master':
             rep_id = master_replid
             rep_offset = master_repl_offset
-            response = b'+role:master\n' + b"master_replid:" + rep_id.encode() + b'\n' + b"master_repl_offset:" + str(rep_offset).encode() + b'\r\n'
-            print(response)
+            response = b'+role:master\n' + b"master_replid:" + rep_id.encode() + b'\n' + \
+                b"master_repl_offset:" + str(rep_offset).encode() + b'\r\n'
+            logger.info(response)
             return response
         elif role == 'slave':
             return b'+role:slave\r\n'
-    
+
+
 def set_command(key, value):
     strings_store[key] = value
-    print(strings_store)
-    return b'+OK\r\n'
+    logger.info(strings_store)
+    if server_role == "slave":
+        pass
+        # return b''
+    else:
+        return b'+OK\r\n'
 
-def get_command(arg1):
-    value, expiry = strings_store.get(arg1, (None, None))
+
+def get_command(key):
+    value, expiry = strings_store.get(key, (None, None))
     if value == None or (expiry and time.time() > expiry):
         return b"$-1\r\n"
-    return b'+' + value.encode() + b'\r\n'
+    else:
+        return b'+' + value.encode() + b'\r\n'
+
 
 def fullresync_command(connection):
     empty_rdb_hex = "524544495330303131fa0972656469732d76657205372e322e30fa0a72656469732d62697473c040fa056374696d65c26d08bc65fa08757365642d6d656dc2b0c41000fa08616f662d62617365c000fff06e3bfec0ff5aa2"
     rdb = bytes.fromhex(empty_rdb_hex)
-    #empty_rdb = empty_rdb.encode()
+    # empty_rdb = empty_rdb.encode()
     rdb_file_response = f"${len(rdb)}\r\n"
     connection.send(rdb_file_response.encode())
     try:
         connection.send(rdb)
     except:
-        print("Error sending the empty rdb file to the client")
+        logger.info("Error sending the empty rdb file to the client")
     else:
-        print("Sent the empty rdb file to the client")
+        logger.info("Sent the empty rdb file to the client")
 
-    
+
 def replication(connection):
     print("Replication started")
     print(to_propagate)
@@ -114,74 +157,92 @@ def replication(connection):
             print("send failed")
 
 # Handle client requests
+
+
 def handle_request(connection):
-    try:
-        while True:
+    buff = []
+    connection.settimeout(5)
+
+    online = True
+    while online:
+        try:
             request = connection.recv(1024)
-            if not request:
-                # Break the loop if the client disconnects
-                break
-            response = parse_request(request, connection)
-            connection.sendall(response)
-    except Exception as e:
-        print(f"Error handling: {e}")
-    finally:
-        connection.close()
+            buff.append(request)
+            if buff:
+                for i in buff:
+                    # print(buff)
+                    req = buff.pop(buff.index(i))
+                    if req != None:
+                        response = parse_request(req, connection)
+        except socket.timeout:
+
+            online = False
+        except Exception as e:
+            logger.exception("Error handling: %s", e)
+            # print(f"Error handling: {e}")
+
+    connection.close()
 
 # Initiate connection with master
+
+
 def handshake(s_port, host="localhost", port=6379):
-    print(f"Sending handshake to {host}:{port}")
+    logger.info("Sending handshake to %s:%d", host, port)
     response1 = "*1\r\n$4\r\nping\r\n"
-    response2 = "*3\r\n$8\r\nREPLCONF\r\n$14\r\nlistening-port\r\n$4\r\n" + str(s_port) + "\r\n"
+    response2 = "*3\r\n$8\r\nREPLCONF\r\n$14\r\nlistening-port\r\n$4\r\n" + \
+        str(s_port) + "\r\n"
     response3 = "*3\r\n$8\r\nREPLCONF\r\n$4\r\ncapa\r\n$6\r\npsync2\r\n"
     response4 = "*3\r\n$5\r\nPSYNC\r\n$1\r\n?\r\n$2\r\n-1\r\n"
     s = socket.create_connection((host, port))
     s.send(response1.encode())
     request1 = s.recv(1024).decode()
-    print(request1)
     if "PONG" in request1:
-        print("Handshake successful")
-        print(response2)
+        logger.info("Handshake started")
         s.send(response2.encode())
     request2 = s.recv(1024).decode()
-    print(request2)
     if "OK" in request2:
-        print(response3)
         s.send(response3.encode())
     request3 = s.recv(1024).decode()
-    print(response2)
     if "OK" in request3:
         s.send(response4.encode())
-    
+    handle_request(s)
+    # r1 = s.recv(1024)
+    # logger.info(r1)
+    # r2 = s.recv(1024)
+    # logger.info(r2)
+
 
 def main(host, port, role="master", m_host=None, m_port=None):
     global server_role
-    role_ = role
+    server_role = role
     server_port = port
-    server_role = role_
-    
+
     if server_role == "master":
         global master_replid
         global master_repl_offset
-        global replicas
         master_replid = "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb"
         master_repl_offset = 0
-        replicas = list()
-        
-    if server_role == "slave":
-        handshake(s_port=server_port, host=m_host, port=m_port)
-        
-    # You can use print statements as follows for debugging, they'll be visible when running tests.
-    print("Logs from your program will appear here!")
-    
+    global replicas
+    replicas = list()
+
+    logger.info("Logs from your program will appear here!")
+
     # Create server socket
     server_socket = socket.create_server((host, port), reuse_port=True)
-    
-    #Infinite loop, server waiting for connections and accepting
+
+    if server_role == "slave":
+        handshake_thread = Thread(
+            target=handshake, args=(server_port, m_host, m_port))
+        handshake_thread.start()
+        # master_connection.send(response)
+
+    # You can use print statements as follows for debugging, they'll be visible when running tests.
+    # Infinite loop, server waiting for connections and accepting
     while True:
-        connection, address = server_socket.accept() # wait for client
+        connection, address = server_socket.accept()  # wait for client
         client_thread = Thread(target=handle_request, args=(connection,))
         client_thread.start()
+
 
 if __name__ == "__main__":
     # Handle cli arguments
@@ -195,12 +256,13 @@ if __name__ == "__main__":
             arg_values = args.replicaof.split()
             master_host = arg_values[0]
             master_port = arg_values[1]
-            print(f"Connecting to port {port} as 'slave'")
-            main(host="localhost", port=port, role="slave", m_host=master_host, m_port=int(master_port))
+            logger.info("Connecting to port %d as 'slave'", port)
+            main(host="localhost", port=port, role="slave",
+                 m_host=master_host, m_port=int(master_port))
         else:
-            print("Connecting to port {port} ...")
+            logger.info("Connecting to port %d ...", port)
             main(port=args.port, host="localhost")
-        
+
     else:
-        print("Connecting to port 6379 ...")
+        logger.info("Connecting to port 6379 ...")
         main(host="localhost", port=6379)
