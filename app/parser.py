@@ -3,13 +3,8 @@ class Parser():
 
     def __init__(self, request):
         self.type_indicators = ("+", "*", ":", "$")
-        try:
-            self.requests_list = list(request.decode().split())
-        except Exception as e:
-            print(f"Error: {e}")
-        else:
-            self.request_type = self.requests_list[0]
-
+        self.requests_list = list(request.decode().split())
+        self.request_type = self.requests_list[0]
         """
         if "*" in self.request_type:
             self.bulk_array()
@@ -47,7 +42,7 @@ class Parser():
 
     def bulk_string(self):
         buffer = []
-        l = self.request_list.decode().split()
+        l = self.requests_list.decode().split()
         buffer.append(l)
         commands = self.parse_commands(buffer)
         return commands

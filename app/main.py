@@ -48,12 +48,15 @@ def parse_request(request, connection):
             response = b'+PONG\r\n'
             connection.sendall(response)
         if command == 'REPLCONF':
-            response = b'+OK\r\n'
-            connection.sendall(response)
+            if arg1 == 'GETACK':
+                response = f'*3\r\n$8\r\nREPLCONF\r\n$3\r\nACK\r\n$1\r\n{replconf_ack_offset}\r\n'
+                connection.sendall(response.encode())
+            else:
+                response = b'+OK\r\n'
+                connection.sendall(response)
         if command == 'PSYNC':
             # Response by master
             replicas.append(connection)
-            print(replicas)
             rep_id = master_replid
             rep_offset = master_repl_offset
             response = b'+FULLRESYNC' + b" " + rep_id.encode() + b" " + \
@@ -62,10 +65,7 @@ def parse_request(request, connection):
             fullresync_command(connection=connection)
             print("Handshake successful")
             # return b''
-        if command == 'REPLCONF':
-            if arg1.upper == 'GETACK':
-                response = f'*3\r\n$8\r\nREPLCONF\r\n$3\r\nACK\r\n$1\r\n{replconf_ack_offset}\r\n'
-                connection.sendall(response.decode())
+
         if command == 'ECHO':
             response = b'+' + arg1.encode() + b'\r\n'
             connection.sendall(response)
@@ -209,11 +209,18 @@ def handshake(s_port, host="localhost", port=6379):
     request3 = s.recv(1024).decode()
     if "OK" in request3:
         s.send(response4.encode())
+
+    r1 = s.recv(1024)
+    r2 = s.recv(1024)
+    new_reqs = b'\r\n'.join([r1, r2])
+    reqs = new_reqs.split(b'\r\n')
+    if len(reqs) > 4:
+        r = reqs[4:]
+        try:
+            parse_request(b'\r\n'.join(r), s)
+        except Exception as e:
+            logger.exception("Error parsing: %s", e)
     handle_request(s)
-    # r1 = s.recv(1024)
-    # logger.info(r1)
-    # r2 = s.recv(1024)
-    # logger.info(r2)
 
 
 def main(host, port, role="master", m_host=None, m_port=None):
