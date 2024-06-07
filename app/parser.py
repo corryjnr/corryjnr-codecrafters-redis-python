@@ -7,7 +7,8 @@ class Parser():
             self.requests_list = list(request.decode().split())
         except Exception as e:
             pass
-        self.request_type = self.requests_list[0]
+        else:
+            self.request_type = self.requests_list[0]
 
         """
         if "*" in self.request_type:

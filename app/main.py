@@ -17,7 +17,7 @@ logging.getLogger("chardet.charsetprober").disabled = True
 
 strings_store = dict()
 to_propagate = dict()
-
+replconf_ack_offset = 0
 fullresync_count = 0
 
 
@@ -62,6 +62,10 @@ def parse_request(request, connection):
             fullresync_command(connection=connection)
             print("Handshake successful")
             # return b''
+        if command == 'REPLCONF':
+            if arg1.upper == 'GETACK':
+                response = f'*3\r\n$8\r\nREPLCONF\r\n$3\r\nACK\r\n$1\r\n{replconf_ack_offset}\r\n'
+                connection.sendall(response.decode())
         if command == 'ECHO':
             response = b'+' + arg1.encode() + b'\r\n'
             connection.sendall(response)
