@@ -86,7 +86,7 @@ def parse_request(request, connection):
                 str(rep_offset).encode() + b'\r\n'
             connection.send(response)
             fullresync_command(connection=connection)
-            print("Handshake successful")
+            logger.info("Handshake successful")
             # return b''
         if command == 'ECHO':
             response = b'+' + arg1.encode() + b'\r\n'
@@ -238,20 +238,26 @@ def handshake(s_port, host="localhost", port=6379):
     r1 = s.recv(1024)
     r2 = s.recv(1024)
     new = r1 + r2
-    logger.info(new[149:])
-    # logger.info(r1)
-    # logger.info(r2)
-    new_reqs = b'\r\n'.join([r1, r2])
-    reqs = new_reqs.split(b'\r\n')
-    logger.info(reqs)
-    if len(reqs) > 4:
-        r = reqs[4:]
-        r = b'\r\n'.join(r)
-        logger.info(r)
+    req = new[149:]
+    if len(new) > 149:
+        logger.info(new[149:])
         try:
-            parse_request(bytes(r), s)
+            parse_request(req, s)
         except Exception as e:
             logger.exception("Error parsing: %s", e)
+    # logger.info(r1)
+    # logger.info(r2)
+    # new_reqs = b'\r\n'.join([r1, r2])
+    # reqs = new_reqs.split(b'\r\n')
+    # logger.info(reqs)
+    # if len(reqs) > 4:
+    #    r = b'\r\n'.join(r)
+    #    r = reqs[4:]
+    #    logger.info(r)
+    #    try:
+    #        parse_request(bytes(r), s)
+    #    except Exception as e:
+    #        logger.exception("Error parsing: %s", e)
     handle_request(s)
 
 
