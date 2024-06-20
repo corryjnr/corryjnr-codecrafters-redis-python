@@ -237,6 +237,8 @@ def handshake(s_port, host="localhost", port=6379):
 
     r1 = s.recv(1024)
     r2 = s.recv(1024)
+    new = r1 + r2
+    logger.info(new)
     logger.info(r1)
     logger.info(r2)
     new_reqs = b'\r\n'.join([r1, r2])
