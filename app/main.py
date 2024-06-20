@@ -58,8 +58,8 @@ def parse_request(request, connection):
                 connection.sendall(response)
         if command == 'WAIT':
             if server_role == "master":
-                response = b':0\r\n'
-                connection.sendall(response)
+                response = f':{len(replicas)}\r\n'
+                connection.sendall(response.encode())
         if command == 'REPLCONF':
             if arg1 == 'GETACK':
                 response = f'*3\r\n$8\r\nREPLCONF\r\n$3\r\nACK\r\n${len(str(replconf_ack_offset))}\r\n{replconf_ack_offset}\r\n'
