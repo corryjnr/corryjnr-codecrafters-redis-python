@@ -5,16 +5,6 @@ class Parser():
         self.type_indicators = ("+", "*", ":", "$")
         self.requests_list = list(request.decode().split())
         self.request_type = self.requests_list[0]
-        """
-        if "*" in self.request_type:
-            self.bulk_array()
-        elif "$" in self.request_type:
-            self.bulk_string()
-        elif "+" in self.request_type:
-            self.simple_string()
-        elif ":" in self.request_type:
-            self.simple_integer()
-        """
 
     def bulk_array(self):
         buffer = []
@@ -33,17 +23,10 @@ class Parser():
                     temp_list.append(i)
             buffer.append(temp_list)
 
-        if count > 1:
-            buffer_requests()
-        else:
-            buffer.append(self.requests_list)
-        commands = self.parse_commands(buffer)
-        return commands
-
-    def bulk_string(self):
-        buffer = []
-        l = self.requests_list.decode().split()
-        buffer.append(l)
+        # if count > 1:
+        #    buffer_requests()
+        # else:
+        buffer.append(self.requests_list)
         commands = self.parse_commands(buffer)
         return commands
 
@@ -55,6 +38,13 @@ class Parser():
                 if not i.startswith(self.type_indicators):
                     temp.append(i)
             commands.append(temp)
+        return commands
+
+    def bulk_string(self):
+        buffer = []
+        l = self.requests_list.decode().split()
+        buffer.append(l)
+        commands = self.parse_commands(buffer)
         return commands
 
 

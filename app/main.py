@@ -5,9 +5,10 @@ import sys
 import argparse
 from threading import Thread
 from . import parser as ps
+from .pipeline import buffer_requests
 import logging
 logging.basicConfig(
-    format="%(asctime)s %(levelname)s:%(name)s: %(message)s",
+    format="%(asctime)s %(levelname)s:%(name)s:%(lineno)d: %(message)s",
     level=logging.DEBUG,
     datefmt="%H:%M:%S",
     stream=sys.stderr,
@@ -18,21 +19,28 @@ logging.getLogger("chardet.charsetprober").disabled = True
 strings_store = dict()
 to_propagate = dict()
 replconf_ack_offset = 0
+ack_offset_count = False
 fullresync_count = 0
 
 
 def parse_request(request, connection):
+    global ack_offset_count
+    global replconf_ack_offset
+    logger.info("Request: %s", request)
+    # logger.info("Request decoded: %s", request.decode())
     parsed_requests = []
     if request:
         parser = ps.Parser(request)
         if "*" in parser.request_type:
             parsed_requests = parser.bulk_array()
+            logger.info("Parsed requests: %s", parsed_requests)
         elif "$" in parser.request_type:
             parsed_requests = parser.bulk_string()
-
     global replicas
+
     for parsed_request in parsed_requests:
-        # print(f"Parsed request: {parsed_request}")
+        if len(parsed_request) <= 0:
+            continue
         command = parsed_request[0]
         info = ' '.join(parsed_request)
         # print(f"Request: {' '.join(parsed_request)}")
@@ -45,15 +53,26 @@ def parse_request(request, connection):
 
         # Handle received Commands
         if command == 'PING':
-            response = b'+PONG\r\n'
-            connection.sendall(response)
+            if server_role == "master":
+                response = b'+PONG\r\n'
+                connection.sendall(response)
         if command == 'REPLCONF':
             if arg1 == 'GETACK':
-                response = f'*3\r\n$8\r\nREPLCONF\r\n$3\r\nACK\r\n$1\r\n{replconf_ack_offset}\r\n'
+                response = f'*3\r\n$8\r\nREPLCONF\r\n$3\r\nACK\r\n${len(str(replconf_ack_offset))}\r\n{replconf_ack_offset}\r\n'
                 connection.sendall(response.encode())
-            else:
+                if ack_offset_count == False:
+                    ack_offset_count = True
+                replconf_ack_offset += len(request)
+            elif arg1 == 'listening-port':
                 response = b'+OK\r\n'
                 connection.sendall(response)
+            elif arg1 == 'capa':
+                response = b'+OK\r\n'
+                connection.sendall(response)
+
+        if server_role == "slave" and ack_offset_count == True and arg1 != 'GETACK':
+            replconf_ack_offset += len(request)
+
         if command == 'PSYNC':
             # Response by master
             replicas.append(connection)
@@ -65,7 +84,6 @@ def parse_request(request, connection):
             fullresync_command(connection=connection)
             print("Handshake successful")
             # return b''
-
         if command == 'ECHO':
             response = b'+' + arg1.encode() + b'\r\n'
             connection.sendall(response)
@@ -164,22 +182,25 @@ def replication(connection):
 
 
 def handle_request(connection):
-    buff = []
+    # buff = []
     connection.settimeout(5)
 
     online = True
     while online:
         try:
             request = connection.recv(1024)
-            buff.append(request)
-            if buff:
-                for i in buff:
-                    # print(buff)
-                    req = buff.pop(buff.index(i))
-                    if req != None:
-                        response = parse_request(req, connection)
+            # buff.append(request)
+            # if buff:
+            if request:
+                r = buffer_requests(request)
+                for i in r:
+                    response = parse_request(i, connection)
+                # for i in buff:
+                # print(buff)
+                # req = buff.pop(buff.index(i))
+                # if req != None:
+                # response = parse_request(req, connection)
         except socket.timeout:
-
             online = False
         except Exception as e:
             logger.exception("Error handling: %s", e)
@@ -212,12 +233,17 @@ def handshake(s_port, host="localhost", port=6379):
 
     r1 = s.recv(1024)
     r2 = s.recv(1024)
+    logger.info(r1)
+    logger.info(r2)
     new_reqs = b'\r\n'.join([r1, r2])
     reqs = new_reqs.split(b'\r\n')
+    logger.info(reqs)
     if len(reqs) > 4:
         r = reqs[4:]
+        r = b'\r\n'.join(r)
+        logger.info(r)
         try:
-            parse_request(b'\r\n'.join(r), s)
+            parse_request(bytes(r), s)
         except Exception as e:
             logger.exception("Error parsing: %s", e)
     handle_request(s)
